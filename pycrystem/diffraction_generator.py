@@ -27,7 +27,7 @@ from .diffraction_signal import ElectronDiffraction
 from .utils.sim_utils import get_electron_wavelength,\
     get_kinematical_intensities
 from pymatgen.util.plotting import get_publication_quality_plot
-
+from pymatgen.io import ase
 
 _GAUSSIAN2D_EXPR = \
     "intensity * exp(" \
