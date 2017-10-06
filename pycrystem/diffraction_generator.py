@@ -72,7 +72,7 @@ class ElectronDiffractionCalculator(object):
         self.max_excitation_error = max_excitation_error
         self.debye_waller_factors = debye_waller_factors or {}
 
-    def calculate_ed_data(self, structure, reciprocal_radius = 0, algorithm = 'Ewald'):
+    def calculate_ed_data(self, structure,algorithm = 'Ewald',reciprocal_radius = 0):
         """Calculates the Electron Diffraction data for a structure.
 
         Parameters
