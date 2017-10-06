@@ -72,7 +72,7 @@ class ElectronDiffractionCalculator(object):
         self.max_excitation_error = max_excitation_error
         self.debye_waller_factors = debye_waller_factors or {}
 
-    def calculate_ed_data(self, structure, reciprocal_radius):
+    def calculate_ed_data(self, structure, reciprocal_radius = 0, algorithm = 'Ewald'):
         """Calculates the Electron Diffraction data for a structure.
 
         Parameters
@@ -95,9 +95,14 @@ class ElectronDiffractionCalculator(object):
         max_excitation_error = self.max_excitation_error
         debye_waller_factors = self.debye_waller_factors
         latt = structure.lattice
-
+        if algorithm == 'multi-slice':
+            #ASE and binaries
+            pass
+        
         # Obtain crystallographic reciprocal lattice points within `max_r` and
         # g-vector magnitudes for intensity calculations.
+        if reciprocal_radius == 0:
+            raise ValueError("You are attempting to run the Ewald method without specifying a reciprocal radius")
         recip_latt = latt.reciprocal_lattice_crystallographic
         recip_pts, g_hkls = \
             recip_latt.get_points_in_sphere([[0, 0, 0]], [0, 0, 0],
