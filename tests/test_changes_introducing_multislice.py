@@ -23,7 +23,7 @@ data_silicon = []
 for theta in thetas:
     rot = RotationTransformation(rotaxis, theta)
     sieg = rot.apply_transformation(silicon)
-    diff_dat = ediff.calculate_ed_data(sieg, radius)
+    diff_dat = ediff.calculate_ed_data(sieg,reciprocal_radius=radius)
     dpi = diff_dat.as_signal(256, 0.03, 1.2)
     data_silicon.append(dpi.data)
     
