@@ -96,7 +96,9 @@ class ElectronDiffractionCalculator(object):
         debye_waller_factors = self.debye_waller_factors
         latt = structure.lattice
         if algorithm == 'multi-slice':
-            #ASE and binaries
+            import ase
+            # need to check for the binaries
+            
             pass
         
         # Obtain crystallographic reciprocal lattice points within `max_r` and
