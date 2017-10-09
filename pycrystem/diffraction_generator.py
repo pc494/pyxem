@@ -69,6 +69,7 @@ class ElectronDiffractionCalculator(object):
                  max_excitation_error,
                  debye_waller_factors=None):
         self.wavelength = get_electron_wavelength(accelerating_voltage)
+        self.accelerating_voltage = accelerating_voltage
         self.max_excitation_error = max_excitation_error
         self.debye_waller_factors = debye_waller_factors or {}
 
@@ -80,6 +81,8 @@ class ElectronDiffractionCalculator(object):
         structure : Structure
             The structure for which to derive the diffraction pattern. Note that
             the structure must be rotated to the appropriate orientation.
+        algorithm : 'multi-slice' or 'Ewald'
+        
         reciprocal_radius : float
             The maximum radius of the sphere of reciprocal space to sample, in
             reciprocal angstroms.
@@ -94,10 +97,17 @@ class ElectronDiffractionCalculator(object):
         wavelength = self.wavelength
         max_excitation_error = self.max_excitation_error
         debye_waller_factors = self.debye_waller_factors
+        accelerating_voltage = self.accelerating_voltage
         latt = structure.lattice
         if algorithm == 'multi-slice':
-            import ase  # may also be worth checking for binneed to check for the binaries perhaps
-            structure_ase = pymatgenase.AseAtomsAdaptor.get_atoms(structure)
+            from ase import atoms  # may also be worth checking for binneed to check for the binaries perhaps
+            from pyqstem import PyQSTEM
+            qstem = PyQSTEM('TEM') #initialise a TEM object
+            qstem.set_atoms(pymatgenase.AseAtomsAdaptor.get_atoms(structure)) #this does a pymatgen ---> conversion
+            qstem.build_wave('plane',accelerating_voltage,(300,300)) ## where do these hardwired numbers come from
+            num_slices=10 ### what should this number be?
+            qstem.build_potential(num_slices)
+            qstem.run() ## this now means we have a wave that has passed through our sample
             pass
         
         # Obtain crystallographic reciprocal lattice points within `max_r` and
