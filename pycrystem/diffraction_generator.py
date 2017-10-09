@@ -27,7 +27,7 @@ from .diffraction_signal import ElectronDiffraction
 from .utils.sim_utils import get_electron_wavelength,\
     get_kinematical_intensities
 from pymatgen.util.plotting import get_publication_quality_plot
-from pymatgen.io import ase
+from pymatgen.io import ase as pymatgenase
 
 _GAUSSIAN2D_EXPR = \
     "intensity * exp(" \
@@ -96,9 +96,8 @@ class ElectronDiffractionCalculator(object):
         debye_waller_factors = self.debye_waller_factors
         latt = structure.lattice
         if algorithm == 'multi-slice':
-            import ase
-            # need to check for the binaries
-            
+            import ase  # may also be worth checking for binneed to check for the binaries perhaps
+            structure_ase = pymatgenase.AseAtomsAdaptor.get_atoms(structure)
             pass
         
         # Obtain crystallographic reciprocal lattice points within `max_r` and
