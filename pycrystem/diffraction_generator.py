@@ -102,6 +102,7 @@ class ElectronDiffractionCalculator(object):
         if algorithm == 'multi-slice':
             from ase import atoms  # may also be worth checking for binneed to check for the binaries perhaps
             from pyqstem import PyQSTEM
+            from matplotlib import pyplot as plt
             qstem = PyQSTEM('TEM') #initialise a TEM object
             qstem.set_atoms(pymatgenase.AseAtomsAdaptor.get_atoms(structure)) #this does a pymatgen ---> conversion
             qstem.build_wave('plane',accelerating_voltage,(300,300)) ## where do these hardwired numbers come from
