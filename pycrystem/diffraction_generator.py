@@ -115,7 +115,7 @@ class ElectronDiffractionCalculator(object):
             wave.view(method='amplitude',ax=ax1)
             wave.view(method='phase',ax=ax2)
             plt.tight_layout()
-
+            plt.show()
             print('Energy (in keV):',wave.energy)
             print('Sampling (in Angstrom):',wave.sampling)
             print('Lateral extent (in Angstrom):',wave.get_extent())
