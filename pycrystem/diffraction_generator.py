@@ -117,6 +117,9 @@ class ElectronDiffractionCalculator(object):
             else:
                 array=wave.array
                 extent=wave.get_extent()
+                
+            img= np.abs(np.fft.fftshift(np.fft.fft2(array)))**2
+            return img
             ####
             pass
         
