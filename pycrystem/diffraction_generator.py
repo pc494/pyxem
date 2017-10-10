@@ -109,16 +109,14 @@ class ElectronDiffractionCalculator(object):
             num_slices=10 ### what should this number be?
             qstem.build_potential(num_slices)
             qstem.run() ## this now means we have a wave that has passed through our sample
-            #### getting a plot to test with
             wave=qstem.get_wave()
-            fig,(ax1,ax2)=plt.subplots(1,2,figsize=(8,4))
-            wave.view(method='amplitude',ax=ax1)
-            wave.view(method='phase',ax=ax2)
-            plt.tight_layout()
-            plt.show()
-            print('Energy (in keV):',wave.energy)
-            print('Sampling (in Angstrom):',wave.sampling)
-            print('Lateral extent (in Angstrom):',wave.get_extent())
+            ### upcoming logic lifted from wave.view() method
+            if len(wave.array.shape)==3:
+                array=np.sum(wave.array,axis=2)
+                extent=wave.get_extent()[:4]
+            else:
+                array=wave.array
+                extent=wave.get_extent()
             ####
             pass
         
