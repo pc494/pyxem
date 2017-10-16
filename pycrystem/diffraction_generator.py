@@ -102,7 +102,6 @@ class ElectronDiffractionCalculator(object):
         if algorithm == 'multi-slice':
             from ase import atoms  # may also be worth checking for binneed to check for the binaries perhaps
             from pyqstem import PyQSTEM
-            from matplotlib import pyplot as plt
             qstem = PyQSTEM('TEM') #initialise a TEM object
             qstem.set_atoms(pymatgenase.AseAtomsAdaptor.get_atoms(structure)) #this does a pymatgen ---> conversion
             qstem.build_wave('plane',accelerating_voltage,(300,300)) ## where do these hardwired numbers come from
@@ -120,9 +119,7 @@ class ElectronDiffractionCalculator(object):
                 
             img= np.abs(np.fft.fftshift(np.fft.fft2(array)))**2
             return img
-            ####
-            pass
-        
+            
         # Obtain crystallographic reciprocal lattice points within `max_r` and
         # g-vector magnitudes for intensity calculations.
         if reciprocal_radius == 0:
