@@ -73,7 +73,7 @@ class ElectronDiffractionCalculator(object):
         self.max_excitation_error = max_excitation_error
         self.debye_waller_factors = debye_waller_factors or {}
 
-    def calculate_ed_data(self, structure,algorithm = 'Ewald',reciprocal_radius = 0):
+    def calculate_ed_data(self, structure,algorithm,wave_size=0,num_slices=0,reciprocal_radius=0):
         """Calculates the Electron Diffraction data for a structure.
 
         Parameters
@@ -81,11 +81,19 @@ class ElectronDiffractionCalculator(object):
         structure : Structure
             The structure for which to derive the diffraction pattern. Note that
             the structure must be rotated to the appropriate orientation.
+            
         algorithm : 'multi-slice' or 'Ewald'
+            The algorithm used to simulate the diffraction pattern
+        
+        wave_size: int
+            The size of image to generate in pixels
+        
+        num_slices: int 
+            The number of slices to take (multi-slice mode only)
         
         reciprocal_radius : float
             The maximum radius of the sphere of reciprocal space to sample, in
-            reciprocal angstroms.
+            reciprocal angstroms. (Ewald mode only)
 
         Returns
         -------
@@ -100,66 +108,82 @@ class ElectronDiffractionCalculator(object):
         accelerating_voltage = self.accelerating_voltage
         latt = structure.lattice
         if algorithm == 'multi-slice':
-            from ase import atoms  # may also be worth checking for binneed to check for the binaries perhaps
-            from pyqstem import PyQSTEM
-            qstem = PyQSTEM('TEM') #initialise a TEM object
+            if wave_size==0 or num_slices==0:
+                raise ValueError('Please specify a sensible value of wave_size or num_slice')
+            from ase import atoms  # may also be worth checking for the binaries
+            from pyqstem import PyQSTEM #to be tested
+            qstem = PyQSTEM('TEM')
             qstem.set_atoms(pymatgenase.AseAtomsAdaptor.get_atoms(structure)) #this does a pymatgen ---> conversion
-            qstem.build_wave('plane',accelerating_voltage,(300,300)) ## where do these hardwired numbers come from
-            num_slices=10 ### what should this number be?
+            qstem.build_wave('plane',accelerating_voltage,(wave_size,wave_size))
             qstem.build_potential(num_slices)
-            qstem.run() ## this now means we have a wave that has passed through our sample
+            qstem.run()
             wave=qstem.get_wave()
-            ### upcoming logic lifted from wave.view() method
+            
             if len(wave.array.shape)==3:
-                array=np.sum(wave.array,axis=2)
-                extent=wave.get_extent()[:4]
+                raise ValueError('This routine can currently only be run on 2D waves')  
             else:
                 array=wave.array
-                extent=wave.get_extent()
-                
-            img= np.abs(np.fft.fftshift(np.fft.fft2(array)))**2
-            return img
+                extent=wave.get_reciprocal_extent()
+            
+            if array.shape[0]!=array.shape[1]:
+                raise ValueError('This routine currently only works for square waveforms')
+            else:
+                spaced_values = np.linspace(extent[0],extent[1],num=array.shape[0])
+                mesh = np.asarray(np.meshgrid(spaced_values,spaced_values,indexing="ij"))
+                x_cord = mesh[0,:,:]
+                y_cord = mesh[1,:,:] 
+                coordinate_array = np.vstack(([x_cord.T], [y_cord.T])).T
+                coordinate_array = coordinate_array.reshape([array.shape[0]*array.shape[0],2])
+
+            intensity_array = np.abs(np.fft.fftshift(np.fft.fft2(array)))**2
+            intensity_array = intensity_array.flatten()
+            
+            # TODO: Implement some post sample work 
+            
+            return DiffractionSimulation(coordinates=coordinate_array,
+                                     intensities=intensity_array)
             
         # Obtain crystallographic reciprocal lattice points within `max_r` and
         # g-vector magnitudes for intensity calculations.
-        if reciprocal_radius == 0:
-            raise ValueError("You are attempting to run the Ewald method without specifying a reciprocal radius")
-        recip_latt = latt.reciprocal_lattice_crystallographic
-        recip_pts, g_hkls = \
-            recip_latt.get_points_in_sphere([[0, 0, 0]], [0, 0, 0],
+        if algorithm == 'Ewald':
+            if reciprocal_radius == 0: # switch over to kwargs
+                raise ValueError("You are attempting to run the Ewald method without specifying a reciprocal radius")
+            recip_latt = latt.reciprocal_lattice_crystallographic
+            recip_pts, g_hkls = \
+                recip_latt.get_points_in_sphere([[0, 0, 0]], [0, 0, 0],
                                             reciprocal_radius,
                                             zip_results=False)[:2]
-        cartesian_coordinates = recip_latt.get_cartesian_coords(recip_pts)
+            cartesian_coordinates = recip_latt.get_cartesian_coords(recip_pts)
 
-        # Identify points intersecting the Ewald sphere within maximum
-        # excitation error and store the magnitude of their excitation error.
-        radius = 1 / wavelength
-        r = np.sqrt(np.sum(np.square(cartesian_coordinates[:, :2]), axis=1))
-        theta = np.arcsin(r / radius)
-        z_sphere = radius * (1 - np.cos(theta))
-        proximity = np.absolute(z_sphere - cartesian_coordinates[:, 2])
-        intersection = proximity < max_excitation_error
-        # Mask parameters corresponding to excited reflections.
-        intersection_coordinates = cartesian_coordinates[intersection]
-        intersection_indices = recip_pts[intersection]
-        proximity = proximity[intersection]
-        g_hkls = g_hkls[intersection]
+            # Identify points intersecting the Ewald sphere within maximum
+            # excitation error and store the magnitude of their excitation error.
+            radius = 1 / wavelength
+            r = np.sqrt(np.sum(np.square(cartesian_coordinates[:, :2]), axis=1))
+            theta = np.arcsin(r / radius)
+            z_sphere = radius * (1 - np.cos(theta))
+            proximity = np.absolute(z_sphere - cartesian_coordinates[:, 2])
+            intersection = proximity < max_excitation_error
+            # Mask parameters corresponding to excited reflections.
+            intersection_coordinates = cartesian_coordinates[intersection]
+            intersection_indices = recip_pts[intersection]
+            proximity = proximity[intersection]
+            g_hkls = g_hkls[intersection]
 
-        # Calculate diffracted intensities based on a kinematical model.
-        intensities = get_kinematical_intensities(structure,
-                                                  intersection_indices,
-                                                  g_hkls,
-                                                  proximity,
-                                                  max_excitation_error,
-                                                  debye_waller_factors)
+            # Calculate diffracted intensities based on a kinematical model.
+            intensities = get_kinematical_intensities(structure,
+                                                      intersection_indices,
+                                                      g_hkls,
+                                                      proximity,
+                                                      max_excitation_error,
+                                                      debye_waller_factors)
 
-        # Threshold peaks included in simulation based on minimum intensity.
-        peak_mask = intensities > 1e-20
-        intensities = intensities[peak_mask]
-        intersection_coordinates = intersection_coordinates[peak_mask]
-        intersection_indices = intersection_indices[peak_mask]
+            # Threshold peaks included in simulation based on minimum intensity.
+            peak_mask = intensities > 1e-20
+            intensities = intensities[peak_mask]
+            intersection_coordinates = intersection_coordinates[peak_mask]
+            intersection_indices = intersection_indices[peak_mask]
 
-        return DiffractionSimulation(coordinates=intersection_coordinates,
+            return DiffractionSimulation(coordinates=intersection_coordinates,
                                      indices=intersection_indices,
                                      intensities=intensities)
 
@@ -281,7 +305,8 @@ class DiffractionSimulation:
 
     def as_signal(self, size, sigma, max_r):
         """Returns the diffraction data as an ElectronDiffraction signal with
-        two-dimensional Gaussians representing each diffracted peak.
+        two-dimensional Gaussians representing each diffracted peak. Should not be used
+        in combination with multi-slice outputs
 
         Parameters
         ----------
