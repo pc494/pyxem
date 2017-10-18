@@ -39,16 +39,6 @@ _GAUSSIAN2D_EXPR = \
 class ElectronDiffractionCalculator(object):
     """Computes electron diffraction patterns for a crystal structure.
 
-    1. Calculate reciprocal lattice of structure. Find all reciprocal points
-       within the limiting sphere given by :math:`\\frac{2}{\\lambda}`.
-
-    2. For each reciprocal point :math:`\\mathbf{g_{hkl}}` corresponding to
-       lattice plane :math:`(hkl)`, compute the Bragg condition
-       :math:`\\sin(\\theta) = \\frac{\\lambda}{2d_{hkl}}`
-
-    3. The intensity of each reflection is then given in the kinematic
-       approximation as the modulus square of the structure factor.
-       :math:`I_{hkl} = F_{hkl}F_{hkl}^*`
 
     Parameters
     ----------
@@ -86,7 +76,7 @@ class ElectronDiffractionCalculator(object):
             The algorithm used to simulate the diffraction pattern
         
         wave_size: int
-            The size of image to generate in pixels
+            The size (length of a side of the square) of the image to generate (in pixels) 
         
         num_slices: int 
             The number of slices to take (multi-slice mode only)
@@ -111,7 +101,7 @@ class ElectronDiffractionCalculator(object):
             if wave_size==0 or num_slices==0:
                 raise ValueError('Please specify a sensible value of wave_size or num_slice')
             from ase import atoms  # may also be worth checking for the binaries
-            from pyqstem import PyQSTEM #to be tested
+            from pyqstem import PyQSTEM 
             qstem = PyQSTEM('TEM')
             qstem.set_atoms(pymatgenase.AseAtomsAdaptor.get_atoms(structure)) #this does a pymatgen ---> conversion
             qstem.build_wave('plane',accelerating_voltage,(wave_size,wave_size))
@@ -120,7 +110,7 @@ class ElectronDiffractionCalculator(object):
             wave=qstem.get_wave()
             
             if len(wave.array.shape)==3:
-                raise ValueError('This routine can currently only be run on 2D waves')  
+                pass  #potential addition of feature  
             else:
                 array=wave.array
                 extent=wave.get_reciprocal_extent()
@@ -138,7 +128,7 @@ class ElectronDiffractionCalculator(object):
             intensity_array = np.abs(np.fft.fftshift(np.fft.fft2(array)))**2
             intensity_array = intensity_array.flatten()
             
-            # TODO: Implement some post sample work 
+            # TODO: Implement some post sample work (CTF or similar)
             
             return DiffractionSimulation(coordinates=coordinate_array,
                                      intensities=intensity_array)
