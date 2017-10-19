@@ -64,7 +64,7 @@ class ElectronDiffractionCalculator(object):
         self.debye_waller_factors = debye_waller_factors or {}
 
     def calculate_ed_data(self, structure,reciprocal_radius=0):
-        raise DeprecationWarning('This functionality is now packages as calculate_ed_data_kinematic')
+        raise DeprecationWarning('This functionality is now packaged as calculate_ed_data_kinematic')
         """Calculates the Electron Diffraction data for a structure. Now obsolete, use calculate_ed_data_kinematic
         """
         
