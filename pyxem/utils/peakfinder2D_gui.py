@@ -23,7 +23,12 @@ import matplotlib.pyplot as plt
 from IPython.display import display
 from .peakfinders2D import *
 
-METHODS = [find_peaks_zaefferer,find_peaks_stat, find_peaks_dog, find_peaks_log,find_peaks_xc]
+METHODS = [
+    find_peaks_zaefferer,
+    find_peaks_stat,
+    find_peaks_dog,
+    find_peaks_log,
+    find_peaks_xc]
 
 
 class PeakFinderUIBase:
@@ -52,7 +57,8 @@ class PeakFinderUIBase:
         return dict(zip(self.method_names, self.methods))[self._method]
 
     def get_data(self):
-        _slices = self.signal._get_array_slices(self.indices, isNavigation=True)
+        _slices = self.signal._get_array_slices(
+            self.indices, isNavigation=True)
         return self.signal.data[_slices]
 
     def get_peaks(self):
@@ -66,7 +72,7 @@ class PeakFinderUIIPYW(PeakFinderUIBase):
     Find peaks using a Jupyter notebook-based user interface
     """
 
-    def __init__(self,disc_image=None,imshow_kwargs={}):
+    def __init__(self, disc_image=None, imshow_kwargs={}):
         super(PeakFinderUIIPYW, self).__init__()
         self.ax = None
         self.image = None
@@ -75,7 +81,6 @@ class PeakFinderUIIPYW(PeakFinderUIBase):
         self.imshow_kwargs = imshow_kwargs
         # if you want to use xc
         self.params[find_peaks_xc.__name__]['disc_image'] = disc_image
-
 
     def init_ui(self):
         self.create_choices_widget()
