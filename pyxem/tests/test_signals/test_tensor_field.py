@@ -128,3 +128,44 @@ def test_get_strain_maps(dgm,
                          strain_answers):
     strain_results = dgm.get_strain_maps()
     np.testing.assert_almost_equal(strain_results.data, strain_answers)
+
+""" These test will be operational once a basis change functionality is introduced """
+
+from pyxem.tests.test_generators.test_displacement_gradient_tensor_generator import generate_test_vectors
+import hyperspy.api as hs
+from pyxem.generators.displacement_gradient_tensor_generator import get_DisplacementGradientMap
+
+@pytest.fixture()
+def Displacement_Grad_Map():
+    xy = np.asarray([[1, 0], [0, 1]])
+    deformed = hs.signals.Signal2D(generate_test_vectors(xy))
+    D = get_DisplacementGradientMap(deformed,xy)
+    return D
+
+
+def test_rotation(Displacement_Grad_Map):  # pragma: no cover
+    """
+    We should always measure the same rotations, regardless of basis (as long as it's right handed)
+    """
+    original       = Displacement_Grad_Map.get_strain_maps().inav[3].data
+    rotation_alpha = Displacement_Grad_Map.rotate_strain_basis([1.3,+1.9]).get_strain_maps().inav[3].data
+    rotation_beta = Displacement_Grad_Map.rotate_strain_basis([1.7,-0.3]).get_strain_maps().inav[3].data
+
+    np.testing.assert_almost_equal(original, rotation_alpha, decimal=2)  # rotations
+    np.testing.assert_almost_equal(original, rotation_beta, decimal=2)  # rotations
+
+
+@pytest.mark.skip(reason="basis change functionality not yet implemented")
+def test_trace(xy_vectors, right_handed, multi_vector):  # pragma: no cover
+    """
+    Basis does effect strain measurement, but we can simply calculate suitable invarients.
+    See https://en.wikipedia.org/wiki/Infinitesimal_strain_theory for details.
+    """
+    np.testing.assert_almost_equal(
+        np.add(
+            xy_vectors.inav[0].data, xy_vectors.inav[1].data), np.add(
+            right_handed.inav[0].data, right_handed.inav[1].data), decimal=2)
+    np.testing.assert_almost_equal(
+        np.add(
+            xy_vectors.inav[0].data, xy_vectors.inav[1].data), np.add(
+            multi_vector.inav[0].data, multi_vector.inav[1].data), decimal=2)
