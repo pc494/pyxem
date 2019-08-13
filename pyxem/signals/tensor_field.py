@@ -63,6 +63,29 @@ def _get_rotation_angle(matrix):
     return np.array(-math.asin(matrix[1, 0]))
 
 
+def _get_xnew_xold_Rmatrix(x_new):
+    """
+    Helper function
+    """
+    #TODO deal with with quadrant problems
+    try:
+        rotation_angle = np.arctan(x_new[1]/x_new[0])
+    except ZeroDivisionError:
+        rotation_angle = np.deg2rad(90) #check sign on this
+    R    = np.array([[np.cos(rotation_angle),-np.sin(rotation_angle),0],
+                     [np.sin(rotation_angle), np.cos(rotation_angle),0],
+                     [0,0,1]])
+    return R
+
+def _rotate_D(z,R=np.eye(3)):
+    """
+    Helper function
+    """
+    # TODO - add some documentation, probably the web link.
+    return np.matmul(R,np.matmul(z,R.T))
+
+
+
 class DisplacementGradientMap(Signal2D):
     _signal_type = "tensor_field"
 
@@ -89,6 +112,23 @@ class DisplacementGradientMap(Signal2D):
                       side='right',
                       inplace=False)
         return RU.isig[:, :, 0], RU.isig[:, :, 1]
+
+    def rotate_strain_basis(self,x_new):
+        """
+        Moves the strain measurement basis by a single rotation from [1,0] and [0,1] as basis
+
+        Parameters
+        ----------
+
+        xnew : list
+            The co-ordinates of a point that lies on the desired x-axis, as [x_old,y_old].
+        """
+        R = _get_xnew_xold_Rmatrix(x_new)
+        self.map(_rotate_D,R=R,inplace=True)
+        print(x_new)
+        # maybe print the basis the strain is now being measured in?
+        return None
+
 
     def get_strain_maps(self):
         """Obtain strain maps from the displacement gradient tensor at each
