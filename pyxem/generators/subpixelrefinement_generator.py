@@ -377,3 +377,90 @@ class SubpixelrefinementGenerator:
 
         self.last_method = "center_of_mass_method"
         return self.vectors_out
+
+    def fitting_gaussians_method(self, square_size, intensity_ratio=0.25):
+        """Find the subpixel refinement of a peak by assuming it lies at the
+        center of intensity.
+
+        Parameters
+        ----------
+        square_size : int
+            Length (in pixels) of one side of a square the contains the peak to
+            be refined.
+
+        intensity_ratio : float, optional, default 0.25
+            The ratio of the weakest pixel to be included in the fit to the maximum intensity
+        Returns
+        -------
+        vector_out: DiffractionVectors
+            DiffractionVectors containing the refined vectors in calibrated
+            units with the same navigation shape as the diffraction patterns.
+
+        """
+
+        def get_gaussian_fit(z,intensity_ratio):
+            """Return the fitted position
+
+            Parameters
+            ----------
+            z :
+
+            intensity_ratio :
+
+            Returns
+            -------
+            (x,y) : tuple of floats
+                The x and y locations of the gaussian peak in the parsed square
+            """
+            def gaussian(x,prefactor,x0,sigma):
+                return prefactor*np.exp(-(x-x0)**2/(2*sigma**2))
+
+            # get max coords
+            xmax,ymax = np.unravel_index(np.argmax(z),z.shape)
+
+            # get profiles
+            xprofile = z[:,ymax]
+            yprofile = z[xmax,:]
+
+            def get_shift_from_max(profile):
+                # Use number of element above half maxima as a guess for width
+                width = np.sum([xprofile > np.max(profile)/2])/2
+
+                # Cut the array so that we only consider sensible points
+                length = np.sum([profile> np.max(profile) * intensity_ratio]) /2
+                profile = profile[argmax(profile)-length:argmax(profile)+length]
+                counter = np.arange(0,len(profile))
+
+                refined = curve_fit(gaussian,counter,profile,p0=[np.max(profile),np.argmax(profile),width])
+
+                # need to be careful about how return the shifts
+                shift_from_max = refined - np.argmax(profile)
+
+                return shift_from_max
+
+            x_shift = get_shift_from_max(xprofile)
+            y_shift = get_shift_from_max(yprofile)
+
+            return (xmax+x_shift,yymax+y_shift)
+
+
+        def _map_fitting_gaussians(dp, vectors, square_size, center, calibration,intensity_ratio):
+            shifts = np.zeros_like(vectors, dtype=np.float64)
+            for i, vector in enumerate(vectors):
+                expt_disc = get_experimental_square(dp, vector, square_size)
+                shifts[i] = [a - square_size / 2 for a in get_gaussian_fit(expt_disc,intensity_ratio)]
+            return ((vectors + shifts) - center) * calibration
+
+        self.vectors_out = self.dp.map(
+            _center_of_mass_map,
+            vectors=self.vector_pixels,
+            square_size=square_size,
+            center=self.center,
+            calibration=self.calibration,
+            intensity_ratio = intensity_ratio,
+            inplace=False,
+        )
+        self.vectors_out.set_signal_type("diffraction_vectors")
+
+        self.last_method = "fitting_gaussians_method"
+        return self.vectors_out
