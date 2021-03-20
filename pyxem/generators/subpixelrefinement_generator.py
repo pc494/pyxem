@@ -377,9 +377,3 @@ class SubpixelrefinementGenerator:
 
         self.last_method = "center_of_mass_method"
         return self.vectors_out
-
-    def local_gaussian_method(self, square_size):
-        """Removed in v0.13, please install a version prior to v.0.13 to use."""
-        raise NotImplementedError(
-            "This functionality was removed in v.0.13.0, please use another method"
-        )

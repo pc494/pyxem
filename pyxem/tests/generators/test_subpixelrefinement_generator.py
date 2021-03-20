@@ -167,13 +167,6 @@ class Test_subpixelpeakfinders:
         self.no_shift_case(subpixelsfound)
         self.x_shift_case(subpixelsfound)
 
-    def test_log(self, diffraction_vectors):
-        with pytest.raises(
-            NotImplementedError,
-            match="This functionality was removed in v.0.13.0",
-        ):
-            _ = self.get_spr(diffraction_vectors).local_gaussian_method(12)
-
 
 def test_xy_errors_in_conventional_xc_method_as_per_issue_490():
     """ This was the MWE example code for the issue """
