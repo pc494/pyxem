@@ -428,7 +428,7 @@ class SubpixelrefinementGenerator:
 
                 # Cut the array so that we only consider sensible points
                 length = np.sum([profile> np.max(profile) * intensity_ratio]) /2
-                profile = profile[argmax(profile)-length:argmax(profile)+length]
+                profile = profile[np.argmax(profile)-length:np.argmax(profile)+length]
                 counter = np.arange(0,len(profile))
 
                 refined = curve_fit(gaussian,counter,profile,p0=[np.max(profile),np.argmax(profile),width])
@@ -452,7 +452,7 @@ class SubpixelrefinementGenerator:
             return ((vectors + shifts) - center) * calibration
 
         self.vectors_out = self.dp.map(
-            _center_of_mass_map,
+            _map_fitting_gaussians,
             vectors=self.vector_pixels,
             square_size=square_size,
             center=self.center,

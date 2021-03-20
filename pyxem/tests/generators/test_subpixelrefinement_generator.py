@@ -167,6 +167,11 @@ class Test_subpixelpeakfinders:
         self.no_shift_case(subpixelsfound)
         self.x_shift_case(subpixelsfound)
 
+    def test_assertioned_gaussian_fitting(self, diffraction_vectors):
+        subpixelsfound = self.get_spr(diffraction_vectors).gaussian_fitting(12)
+        self.no_shift_case(subpixelsfound)
+        self.x_shift_case(subpixelsfound)
+
 
 def test_xy_errors_in_conventional_xc_method_as_per_issue_490():
     """ This was the MWE example code for the issue """
