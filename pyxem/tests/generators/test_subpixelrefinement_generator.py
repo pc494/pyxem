@@ -97,80 +97,83 @@ class Test_init_xfails:
         ):
             _ = SubpixelrefinementGenerator(dp, vectors)
 
-
-class set_up_for_subpixelpeakfinders:
-    def create_spot(self):
-        z1, z1a = np.zeros((128, 128)), np.zeros((128, 128))
-        z2, z2a = np.zeros((128, 128)), np.zeros((128, 128))
-
-        rr, cc = draw.circle(30, 90, radius=4, shape=z1.shape)  # 30 is y!
-        z1[rr, cc], z2[rr, cc] = 1, 1
-        rr2, cc2 = draw.circle(100, 60, radius=4, shape=z2.shape)
-        z2[rr2, cc2] = 1
-        rr, cc = draw.circle(30, 90 + 3, radius=4, shape=z1.shape)  # 30 is y!
-        z1a[rr, cc], z2a[rr, cc] = 1, 1
-        rr2, cc2 = draw.circle(100 - 2, 60, radius=4, shape=z2.shape)
-        z2a[rr2, cc2] = 1
-
-        # marks centers for local com and local_gaussian_method
-        z1[30, 90], z2[30, 90], z2[100, 60] = 2, 2, 2
-        z1a[30, 93], z2a[30, 93], z2a[98, 60] = 10, 10, 10
-
-        dp = ElectronDiffraction2D(
-            np.asarray([[z1, z1a], [z2, z2a]])
-        )  # this needs to be in 2x2
-        return dp
-
-    def create_Diffraction_vectors(self):
-        v1 = np.array([[90 - 64, 30 - 64]])
-        v2 = np.array([[90 - 64, 30 - 64], [100 - 64, 60 - 64]])
-        vectors = DiffractionVectors(np.array([[v1, v1], [v2, v2]]))
-        vectors.axes_manager.set_signal_dimension(0)
-        return vectors
-
-
-class Test_subpixelpeakfinders:
+class Test_subpixelpeakfinders():
     """Tests the various peak finders have the correct x,y conventions for
     both the vectors and the shifts, in both the numpy and the DiffractionVectors
     cases as well as confirming we have avoided 'off by one' errors"""
 
-    set_up = set_up_for_subpixelpeakfinders()
+    @pytest.fixture()
+    def diffraction_vectors(self):
+        v1 = np.array([[90 - 64, 30 - 64]])
+        v2 = np.array([[90 - 64, 30 - 64], [100 - 64, 60 - 64]])
+        z = np.array([[v1, v1], [v2, v2]])
+        vectors = DiffractionVectors(z)
+        vectors.axes_manager.set_signal_dimension(2)
+        return vectors
 
-    @pytest.fixture(
-        params=[set_up.create_Diffraction_vectors(), np.array([[90 - 64, 30 - 64]])]
-    )
-    def diffraction_vectors(self, request):
-        # see https://bit.ly/2mXpSlD for an example of this architecture
-        return request.param
+    @pytest.fixture()
+    def dp(self):
+        dp =  np.zeros((2,2,128, 128))
 
-    def get_spr(self, diffraction_vectors):
-        dp = set_up_for_subpixelpeakfinders().create_spot()
-        return SubpixelrefinementGenerator(dp, diffraction_vectors)
+        rr, cc = draw.circle(30, 90, radius=4, shape=(128,128))  # 30 is y!
+        dp[:,:,rr, cc] = 1
+        rr2, cc2 = draw.circle(100, 60, radius=4, shape=(128,128))
+        dp[1,:,rr2, cc2] = 1
 
-    def no_shift_case(self, s):
-        error = s.data[0, 0] - np.asarray([[90 - 64, 30 - 64]])
-        rms_error = np.sqrt(error[0, 0] ** 2 + error[0, 1] ** 2)
-        assert rms_error < 1e-5  # perfect detection for this trivial case
+        # marks centers for com and gaussian methods
+        dp[:,:,30, 90] = 2
+        dp[1,:,100,60] = 2
 
-    def x_shift_case(self, s):
-        error = s.data[0, 1] - np.asarray([[93 - 64, 30 - 64]])
-        rms_error = np.sqrt(error[0, 0] ** 2 + error[0, 1] ** 2)
-        assert rms_error < 0.5  # correct to within a pixel
+        dp = ElectronDiffraction2D(dp)
+        return dp
 
-    def test_assertioned_xc(self, diffraction_vectors):
-        subpixelsfound = self.get_spr(diffraction_vectors).conventional_xc(12, 4, 8)
-        self.no_shift_case(subpixelsfound)
-        self.x_shift_case(subpixelsfound)
+    def test_square_access(self,dp,diffraction_vectors):
+        spg = SubpixelrefinementGenerator(dp,diffraction_vectors)
+        def map_over_nav(z,vectors):
+            for i, vector in enumerate(vectors):
+                expt_disc = get_experimental_square(z, vector, 6)
+                assert np.sum(expt_disc) > 0
+        # does the test at every pixel
+        dp.map(map_over_nav,vectors=spg.vector_pixels)
 
-    def test_assertioned_com(self, diffraction_vectors):
-        subpixelsfound = self.get_spr(diffraction_vectors).center_of_mass_method(12)
-        self.no_shift_case(subpixelsfound)
-        self.x_shift_case(subpixelsfound)
+    @pytest.mark.skip(reason="Dont care yet")
+    @pytest.mark.parametrize("strained",(True,False))
+    def test_com(self,dp,diffraction_vectors,strained):
+        small_strain = 1.05
+        if strained:
+            dp.apply_affine_transformation(D=np.eye(3)*small_strain,inplace=True)
+        spg = SubpixelrefinementGenerator(dp, diffraction_vectors)
+        vectors = spg.center_of_mass_method(20)
+        if strained:
+            ground_truth = vectors.data * small_strain
+        else:
+            ground_truth = vectors.data
+        # all navigation positions match up
+        for idx in [0,1]:
+            for idy in [0,1]:
+                assert np.allclose(vectors.data[idx,idy],ground_truth[idx,idy],atol=0.1)
 
-    def test_assertioned_gaussian_fitting(self, diffraction_vectors):
-        subpixelsfound = self.get_spr(diffraction_vectors).gaussian_fitting(12)
-        self.no_shift_case(subpixelsfound)
-        self.x_shift_case(subpixelsfound)
+
+    @pytest.mark.skip(reason="Dont care yet")
+    @pytest.mark.parametrize("strained",(True,False))
+    def test_xc_method(self,dp,diffraction_vectors,strained):
+        small_strain = 1.05
+        if strained:
+            dp.apply_affine_transformation(D=np.eye(3)*small_strain,inplace=True)
+        spg = SubpixelrefinementGenerator(dp, diffraction_vectors)
+        vectors = spg.conventional_xc(12, 4, 8)
+        if strained:
+            ground_truth = vectors.data * small_strain
+        else:
+            ground_truth = vectors.data
+        # all navigation positions match up
+        for idx in [0,1]:
+            for idy in [0,1]:
+                assert np.allclose(vectors.data[idx,idy],ground_truth[idx,idy],atol=0.1)
+
+
+    def test_gaussian_method(self):
+        pass
 
 
 def test_xy_errors_in_conventional_xc_method_as_per_issue_490():

@@ -162,7 +162,7 @@ def _conventional_xc(exp_disc, sim_disc, upsample_factor):
         Pixel shifts required to register the two images
 
     """
-
+    assert np.sum(exp_disc) > 0
     shifts, error, _ = phase_cross_correlation(
         exp_disc, sim_disc, upsample_factor=upsample_factor
     )
@@ -412,26 +412,48 @@ class SubpixelrefinementGenerator:
             (x,y) : tuple of floats
                 The x and y locations of the gaussian peak in the parsed square
             """
+            from scipy.optimize import curve_fit
+
             def gaussian(x,prefactor,x0,sigma):
                 return prefactor*np.exp(-(x-x0)**2/(2*sigma**2))
 
             # get max coords
             xmax,ymax = np.unravel_index(np.argmax(z),z.shape)
 
+            assert np.sum(z) > 0
             # get profiles
             xprofile = z[:,ymax]
             yprofile = z[xmax,:]
 
             def get_shift_from_max(profile):
+                assert len(profile) > 0
                 # Use number of element above half maxima as a guess for width
-                width = np.sum([xprofile > np.max(profile)/2])/2
+                width = np.sum([profile > np.max(profile)/2])/2
 
                 # Cut the array so that we only consider sensible points
-                length = np.sum([profile> np.max(profile) * intensity_ratio]) /2
-                profile = profile[np.argmax(profile)-length:np.argmax(profile)+length]
-                counter = np.arange(0,len(profile))
+                cut_value = np.max(profile) * intensity_ratio
+                points_above_value = np.sum(profile > cut_value)
+                if points_above_value != len(profile):
+                    if points_above_value < 2:
+                        length = 1 # gives us three points to optimize
+                    else:
+                        length = int(points_above_value/2)
 
-                refined = curve_fit(gaussian,counter,profile,p0=[np.max(profile),np.argmax(profile),width])
+                    #lower index
+                    lix = np.argmax(profile)-length
+                    # upper index
+                    uix = np.argmax(profile)+length+1
+
+                    if lix < 0 or uix > len(profile): #pragma:
+                        raise ValueError("You have a spot that is too close to edge try increasing the value of 'square_size' or 'intensity_ratio'")
+
+                    profile = profile[lix:uix]
+
+                counter = np.arange(0,len(profile))
+                popt,pcov = curve_fit(gaussian,counter,profile,
+                                    p0=[np.max(profile),np.argmax(profile),width])
+
+                refined = popt[1] # see p0 for the justification of this indexing
 
                 # need to be careful about how return the shifts
                 shift_from_max = refined - np.argmax(profile)
@@ -441,10 +463,10 @@ class SubpixelrefinementGenerator:
             x_shift = get_shift_from_max(xprofile)
             y_shift = get_shift_from_max(yprofile)
 
-            return (xmax+x_shift,yymax+y_shift)
+            return (ymax+y_shift,xmax+x_shift)
 
 
-        def _map_fitting_gaussians(dp, vectors, square_size, center, calibration,intensity_ratio):
+        def _map_fitting_gaussians(dp, vectors,center, calibration):
             shifts = np.zeros_like(vectors, dtype=np.float64)
             for i, vector in enumerate(vectors):
                 expt_disc = get_experimental_square(dp, vector, square_size)
@@ -454,10 +476,8 @@ class SubpixelrefinementGenerator:
         self.vectors_out = self.dp.map(
             _map_fitting_gaussians,
             vectors=self.vector_pixels,
-            square_size=square_size,
             center=self.center,
             calibration=self.calibration,
-            intensity_ratio = intensity_ratio,
             inplace=False,
         )
         self.vectors_out.set_signal_type("diffraction_vectors")
