@@ -57,6 +57,21 @@ def test_failure_for_non_even_errors_get_experimental_square(exp_disc):
     with pytest.raises(ValueError, match="'square_size' must be an even number"):
         _ = get_experimental_square(exp_disc, [17, 19], 7)
 
+def test_xy_errors_in_conventional_xc_method_as_per_issue_490():
+    """ This was the MWE example code for the issue """
+    dp = get_simulated_disc(100, 20)
+    # translate y by +4
+    shifted = np.pad(dp, ((0, 4), (0, 0)), "constant")[4:].reshape(1, 1, *dp.shape)
+    signal = ElectronDiffraction2D(shifted)
+    spg = SubpixelrefinementGenerator(signal, np.array([[0, 0]]))
+    peaks = spg.conventional_xc(100, 20, 1).data[0, 0, 0]  # as quoted in the issue
+    np.testing.assert_allclose([0, -4], peaks)
+    """ we also test com method for clarity """
+    peaks = spg.center_of_mass_method(60).data[0, 0, 0]
+    np.testing.assert_allclose([0, -4], peaks, atol=1.5)
+    """ we also test reference_xc """
+    peaks = spg.reference_xc(100, dp, 1).data[0, 0, 0]  # as quoted in the issue
+    np.testing.assert_allclose([0, -4], peaks)
 
 class Test_init_xfails:
     def test_out_of_range_vectors_numpy(self):
@@ -97,32 +112,60 @@ class Test_init_xfails:
         ):
             _ = SubpixelrefinementGenerator(dp, vectors)
 
-class Test_subpixelpeakfinders():
-    """Tests the various peak finders have the correct x,y conventions for
-    both the vectors and the shifts, in both the numpy and the DiffractionVectors
-    cases as well as confirming we have avoided 'off by one' errors"""
+"""
+These are the spot coordinates for the class that follows
+"""
+xcord = 90
+ycord = 30
+xcord2 = 100
+ycord2 = 60
 
+
+class Test_subpixelpeakfinders():
     @pytest.fixture()
     def diffraction_vectors(self):
-        v1 = np.array([[90 - 64, 30 - 64]])
-        v2 = np.array([[90 - 64, 30 - 64], [100 - 64, 60 - 64]])
+        v1 = np.array([[xcord - 64, ycord - 64]])
+        v2 = np.array([[xcord - 64, ycord - 64], [xcord2 - 64, ycord2 - 64]])
         z = np.array([[v1, v1], [v2, v2]])
         vectors = DiffractionVectors(z)
-        vectors.axes_manager.set_signal_dimension(2)
+        vectors.axes_manager.set_signal_dimension(0)
         return vectors
 
     @pytest.fixture()
+    def numpy_vectors(self):
+        return np.array([[xcord - 64, ycord - 64]])
+
+    @pytest.fixture()
     def dp(self):
+        """
+        Four patterns
+        # one spot,
+        # one spot, add 1, subtract 2
+        # two spot,
+        # two spot, add 1, subtract 2 from first
+        """
         dp =  np.zeros((2,2,128, 128))
 
-        rr, cc = draw.circle(30, 90, radius=4, shape=(128,128))  # 30 is y!
-        dp[:,:,rr, cc] = 1
-        rr2, cc2 = draw.circle(100, 60, radius=4, shape=(128,128))
+        #neutral, all patterns spot
+        rr, cc = draw.circle(ycord, xcord, radius=4, shape=(128,128))  # note ordering
+        dp[:,0,rr, cc] = 1
+        # mark center explicitly as discs are flat
+        dp[:,0,ycord, xcord] = 2
+
+        # deformed, all patterns spot
+        rr, cc = draw.circle(ycord-2, xcord+1, radius=4, shape=(128,128))
+        dp[:,1,rr, cc] = 1
+        # mark center explicitly as discs are flat
+        dp[:,1,ycord-2, xcord+1] = 2
+
+        # some patterns, never deformed
+
+        rr2, cc2 = draw.circle(ycord2, xcord2, radius=3, shape=(128,128))
         dp[1,:,rr2, cc2] = 1
 
-        # marks centers for com and gaussian methods
-        dp[:,:,30, 90] = 2
-        dp[1,:,100,60] = 2
+        # mark center as discs are flat
+        dp[1,:,ycord2,xcord2] = 2
+
 
         dp = ElectronDiffraction2D(dp)
         return dp
@@ -135,59 +178,30 @@ class Test_subpixelpeakfinders():
                 assert np.sum(expt_disc) > 0
         # does the test at every pixel
         dp.map(map_over_nav,vectors=spg.vector_pixels)
+        return None
 
-    @pytest.mark.skip(reason="Dont care yet")
-    @pytest.mark.parametrize("strained",(True,False))
-    def test_com(self,dp,diffraction_vectors,strained):
-        small_strain = 1.05
-        if strained:
-            dp.apply_affine_transformation(D=np.eye(3)*small_strain,inplace=True)
+    def test_com_numpy(self,dp,numpy_vectors):
+        spg = SubpixelrefinementGenerator(dp, numpy_vectors)
+        vectors = spg.center_of_mass_method(20)
+
+
+    def test_xc_numpy(self,dp,numpy_vectors):
+        spg = SubpixelrefinementGenerator(dp, numpy_vectors)
+        vectors = spg.conventional_xc(12,4,8)
+        assert np.allclose(vectors.inav[0,0].data,numpy_vectors,atol=0.1)
+        assert np.allclose(vectors.inav[1,1].data,np.add(numpy_vectors,[1,-2]),atol=0.1)
+
+    
+    def test_gaussian_method_numpy(self,dp,numpy_vectors):
+        spg = SubpixelrefinementGenerator(dp, numpy_vectors)
+        vectors = spg.fitting_gaussians_method(20)
+        assert np.allclose(vectors.inav[0,0].data,numpy_vectors,atol=0.1)
+        assert np.allclose(vectors.inav[1,1].data,np.add(numpy_vectors,[1,-2]),atol=0.1)
+
+    @pytest.mark.skip()
+    def test_xc_diffraction_vectors(self,dp,diffraction_vectors):
         spg = SubpixelrefinementGenerator(dp, diffraction_vectors)
         vectors = spg.center_of_mass_method(20)
-        if strained:
-            ground_truth = vectors.data * small_strain
-        else:
-            ground_truth = vectors.data
-        # all navigation positions match up
-        for idx in [0,1]:
-            for idy in [0,1]:
-                assert np.allclose(vectors.data[idx,idy],ground_truth[idx,idy],atol=0.1)
-
-
-    @pytest.mark.skip(reason="Dont care yet")
-    @pytest.mark.parametrize("strained",(True,False))
-    def test_xc_method(self,dp,diffraction_vectors,strained):
-        small_strain = 1.05
-        if strained:
-            dp.apply_affine_transformation(D=np.eye(3)*small_strain,inplace=True)
-        spg = SubpixelrefinementGenerator(dp, diffraction_vectors)
-        vectors = spg.conventional_xc(12, 4, 8)
-        if strained:
-            ground_truth = vectors.data * small_strain
-        else:
-            ground_truth = vectors.data
-        # all navigation positions match up
-        for idx in [0,1]:
-            for idy in [0,1]:
-                assert np.allclose(vectors.data[idx,idy],ground_truth[idx,idy],atol=0.1)
-
-
-    def test_gaussian_method(self):
-        pass
-
-
-def test_xy_errors_in_conventional_xc_method_as_per_issue_490():
-    """ This was the MWE example code for the issue """
-    dp = get_simulated_disc(100, 20)
-    # translate y by +4
-    shifted = np.pad(dp, ((0, 4), (0, 0)), "constant")[4:].reshape(1, 1, *dp.shape)
-    signal = ElectronDiffraction2D(shifted)
-    spg = SubpixelrefinementGenerator(signal, np.array([[0, 0]]))
-    peaks = spg.conventional_xc(100, 20, 1).data[0, 0, 0]  # as quoted in the issue
-    np.testing.assert_allclose([0, -4], peaks)
-    """ we also test com method for clarity """
-    peaks = spg.center_of_mass_method(60).data[0, 0, 0]
-    np.testing.assert_allclose([0, -4], peaks, atol=1.5)
-    """ we also test reference_xc """
-    peaks = spg.reference_xc(100, dp, 1).data[0, 0, 0]  # as quoted in the issue
-    np.testing.assert_allclose([0, -4], peaks)
+        assert np.allclose(vectors.inav[0,0].data,[xcord,ycord],atol=0.1)
+        assert np.allclose(vectors.inav[1,1].isig[0].data,[xcord+1,ycord-2],atol=0.1)
+        assert np.allclose(vectors.inav[1,1].isig[1].data,[xcord2,ycord2],atol=0.1)
