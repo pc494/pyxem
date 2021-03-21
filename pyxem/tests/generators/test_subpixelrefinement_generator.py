@@ -183,7 +183,8 @@ class Test_subpixelpeakfinders():
     def test_com_numpy(self,dp,numpy_vectors):
         spg = SubpixelrefinementGenerator(dp, numpy_vectors)
         vectors = spg.center_of_mass_method(20)
-
+        assert np.allclose(vectors.inav[0,0].data,numpy_vectors,atol=0.1)
+        assert np.allclose(vectors.inav[1,1].data,np.add(numpy_vectors,[1,-2]),atol=0.1)
 
     def test_xc_numpy(self,dp,numpy_vectors):
         spg = SubpixelrefinementGenerator(dp, numpy_vectors)
@@ -191,17 +192,29 @@ class Test_subpixelpeakfinders():
         assert np.allclose(vectors.inav[0,0].data,numpy_vectors,atol=0.1)
         assert np.allclose(vectors.inav[1,1].data,np.add(numpy_vectors,[1,-2]),atol=0.1)
 
-    
     def test_gaussian_method_numpy(self,dp,numpy_vectors):
         spg = SubpixelrefinementGenerator(dp, numpy_vectors)
         vectors = spg.fitting_gaussians_method(20)
         assert np.allclose(vectors.inav[0,0].data,numpy_vectors,atol=0.1)
         assert np.allclose(vectors.inav[1,1].data,np.add(numpy_vectors,[1,-2]),atol=0.1)
 
-    @pytest.mark.skip()
-    def test_xc_diffraction_vectors(self,dp,diffraction_vectors):
+    def test_com_diffraction_vectors(self,dp,diffraction_vectors):
         spg = SubpixelrefinementGenerator(dp, diffraction_vectors)
         vectors = spg.center_of_mass_method(20)
-        assert np.allclose(vectors.inav[0,0].data,[xcord,ycord],atol=0.1)
-        assert np.allclose(vectors.inav[1,1].isig[0].data,[xcord+1,ycord-2],atol=0.1)
-        assert np.allclose(vectors.inav[1,1].isig[1].data,[xcord2,ycord2],atol=0.1)
+        assert np.allclose(vectors.inav[0,0].data,diffraction_vectors.inav[0,0].data,atol=0.1)
+        assert np.allclose(vectors.inav[1,1].isig[0].data,np.add(diffraction_vectors.inav[1,0].isig[0],[1,-2]),atol=0.1)
+        assert np.allclose(vectors.inav[1,1].isig[1].data,diffraction_vectors.inav[1,1].isig[1].data,atol=0.1)
+
+    def test_xc_diffraction_vectors(self,dp,diffraction_vectors):
+        spg = SubpixelrefinementGenerator(dp, diffraction_vectors)
+        vectors = spg.conventional_xc(12,4,8)
+        assert np.allclose(vectors.inav[0,0].data,diffraction_vectors.inav[0,0].data,atol=0.1)
+        assert np.allclose(vectors.inav[1,1].isig[0].data,np.add(diffraction_vectors.inav[1,0].isig[0],[1,-2]),atol=0.75)
+        assert np.allclose(vectors.inav[1,1].isig[1].data,diffraction_vectors.inav[1,1].isig[1].data,atol=0.75)
+
+    def test_gaussian_method_diffraction_vectors(self,dp,diffraction_vectors):
+        spg = SubpixelrefinementGenerator(dp, diffraction_vectors)
+        vectors = spg.fitting_gaussians_method(20)
+        assert np.allclose(vectors.inav[0,0].data,diffraction_vectors.inav[0,0].data,atol=0.1)
+        assert np.allclose(vectors.inav[1,1].isig[0].data,np.add(diffraction_vectors.inav[1,0].isig[0],[1,-2]),atol=0.1)
+        assert np.allclose(vectors.inav[1,1].isig[1].data,diffraction_vectors.inav[1,1].isig[1].data,atol=0.1)
